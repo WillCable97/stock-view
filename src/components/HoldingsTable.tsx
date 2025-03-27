@@ -9,6 +9,7 @@ import { Edit, PlusCircle, Trash2 } from "lucide-react";
 import { DialogFooter } from "./ui/dialog";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow, Table } from "./ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "./ui/pagination";
+import EditStockDialog from "./EditStockDialog";
 
 const holdings = [
   { symbol: "AAPL", name: "Apple Inc.", shares: 50, avgPrice: 145.12, currentPrice: 155.90 },
@@ -80,7 +81,11 @@ const HoldingsTable = () => {
                       {pl >= 0 ? "+" : ""}${pl.toFixed(2)}
                     </TableCell>
                     <TableCell className="flex gap-2">
-                      <Button size="icon" variant="ghost"><Edit className="w-4 h-4" /></Button>
+                      <EditStockDialog stock={h}>
+                        <Button size="icon" variant="ghost">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </EditStockDialog>
                       <Button size="icon" variant="ghost"><Trash2 className="w-4 h-4" /></Button>
                     </TableCell>
                   </TableRow>
