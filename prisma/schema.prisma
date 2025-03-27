@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+
+model User {
+  id              Int               @id @default(autoincrement())
+  email           String            @unique
+  name            String
+  createdAt       DateTime          @default(now())
+  holdings        UserHolding[]     // One user can hold many securities
+  transactions    StockTransaction[]// One user can make many transactions
+}
+
+model UserHolding {
+  id              Int               @id @default(autoincrement())
+  userId          Int
+  securityId      Int
+  quantity        Int
+  avgBuyPrice     Float?            // Optional: to calculate PnL
+  createdAt       DateTime          @default(now())
+
+  user            User              @relation(fields: [userId], references: [id])
+  security        Security          @relation(fields: [securityId], references: [id])
+
+  @@unique([userId, securityId])    // A user cannot hold same stock twice
+}
+
+model StockTransaction {
+  id              Int               @id @default(autoincrement())
+  userId          Int
+  securityId      Int
+  type            TransactionType   // buy or sell
+  quantity        Int
+  price           Float
+  timestamp       DateTime          @default(now())
+
+  user            User              @relation(fields: [userId], references: [id])
+  security        Security          @relation(fields: [securityId], references: [id])
+}
+
+
+model Security {
+  id              Int               @id @default(autoincrement())
+  stockCode       String
+  exchange        String
+  userHoldings    UserHolding[]     // Many users can hold this security
+  transactions    StockTransaction[]// Many transactions involve this security
+
+  @@unique([stockCode, exchange])   // Unique combination constraint
+}
+
+
+
+
+
+enum TransactionType {
+  BUY
+  SELL
+}
+
+
+
+
