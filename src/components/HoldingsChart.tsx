@@ -1,5 +1,30 @@
+"use client" 
+
 import { Bar } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+// Register chart components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
 
 const HoldingsChart = ({ holdings }: { holdings: typeof dummyHoldings }) => {
     const data = {

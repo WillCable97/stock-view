@@ -1,15 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Bell, LogOut, PlusCircle, Edit, Trash2 } from "lucide-react";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
-import { Bar, Line } from "react-chartjs-2";
+import React from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -47,11 +36,7 @@ const dummyHoldings = [
   { symbol: "AMZN", name: "Amazon.com Inc.", shares: 10, avgPrice: 3100.00, currentPrice: 3275.88 }
 ];
 
-
-
-
-
-const PortfolioPage = () => {
+const PortfolioPage = async () => {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <Navbar />

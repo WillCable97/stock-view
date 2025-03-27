@@ -1,5 +1,34 @@
-import { Line } from "react-chartjs-2";
+"use client" 
+
+
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+
+
+
+import {
+  Chart as ChartJS,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+import { Line } from 'react-chartjs-2';
+
+// Register the required components
+ChartJS.register(
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Title,
+  Tooltip,
+  Legend
+);
+
 
 const dummyHistory = [
     { date: "2024-12-01", value: 54000, plPercent: 2.1 },

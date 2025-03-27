@@ -24,7 +24,7 @@ type Transaction = {
 type Props = {
   stock: {
     symbol: string;
-    name: string;
+    newStock: boolean;
   };
   children: React.ReactNode;
 };
@@ -43,7 +43,7 @@ const mockTransactions: Record<string, Transaction[]> = {
   ]
 };
 
-const EditStockDialog = ({ stock, children }: Props) => {
+const  EditStockDialog = ({ newStock = false, stock= "", children }: Props) => {
   const [open, setOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions[stock.symbol] || []);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -79,16 +79,21 @@ const EditStockDialog = ({ stock, children }: Props) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="bg-zinc-900 text-white max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Edit Transactions - {stock.symbol}</DialogTitle>
+          <DialogTitle>{newStock ? "Add Holding" : `Edit Transactions - ${stock.stockCode}`}</DialogTitle>
+          {
+            newStock ? <Input placeholder="Stock Symbol" className="max-w-xs bg-zinc-900 text-white border-zinc-700" /> 
+            : <></>
+          }
+          
         </DialogHeader>
 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Shares</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="!text-white">Date</TableHead>
+              <TableHead className="!text-white">Shares</TableHead>
+              <TableHead className="!text-white">Price</TableHead>
+              <TableHead className="!text-white">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

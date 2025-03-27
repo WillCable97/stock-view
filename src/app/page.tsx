@@ -1,6 +1,6 @@
 import PortfolioPage from "@/components/PortfolioPage";
 
-export default function Home() {
+export default async function Home() {
   return (
     <>
       <PortfolioPage />
