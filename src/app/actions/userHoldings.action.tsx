@@ -35,7 +35,327 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
 
 
 
+  type Transaction = {
+    id: number;
+    date: string;
+    shares: number;
+    price: number;
+  };
+  
+  type TransactionsByStock = Record<string, Transaction[]>;
+  
 
+  export async function getAllTransactions(): Promise<TransactionsByStock> {
+    const userId = await getUserId();
+  
+    const transactions = await prisma.stockTransaction.findMany({
+      where: { userId },
+      include: {
+        security: true,
+      },
+      orderBy: {
+        timestamp: 'asc',
+      },
+    });
+  
+    const grouped: TransactionsByStock = {};
+  
+    for (const tx of transactions) {
+      const code = tx.security.stockCode;
+  
+      if (!grouped[code]) {
+        grouped[code] = [];
+      }
+  
+      grouped[code].push({
+        id: tx.id,
+        date: tx.timestamp.toISOString().split('T')[0], // format as YYYY-MM-DD
+        shares: tx.quantity,
+        price: tx.price,
+      });
+    }
+  
+    return grouped;
+  }
+
+
+
+
+
+
+
+
+
+
+/*
+
+  interface TransactionInput {
+    id: number;
+    stockCode: string;
+    date: Date;
+    quantity: number;
+    price: number;
+    type: 'BUY' | 'SELL';
+    newFlag: boolean;
+    deleteFlag: boolean;
+    updateFlag: boolean;
+  }
+  
+  async function processTransactions(transactions: TransactionInput[], exchange: string) {
+    const userId = await getUserId();
+  
+    for (const tx of transactions) {
+      // 1. Create or find Security
+      const security = await prisma.security.upsert({
+        where: {
+          stockCode_exchange: {
+            stockCode: tx.stockCode,
+            exchange: exchange,
+          },
+        },
+        update: {},
+        create: {
+          stockCode: tx.stockCode,
+          exchange: exchange,
+        },
+      });
+  
+      // DELETE TRANSACTION
+      if (tx.deleteFlag) {
+        await prisma.stockTransaction.delete({
+          where: { id: tx.id },
+        });
+        // Optionally, update holdings after delete
+        await updateUserHolding(userId, security.id);
+        continue;
+      }
+  
+      // CREATE NEW TRANSACTION
+      if (tx.newFlag) {
+        await prisma.stockTransaction.create({
+          data: {
+            userId,
+            securityId: security.id,
+            type: tx.type,
+            quantity: tx.quantity,
+            price: tx.price,
+            timestamp: new Date(tx.date),
+          },
+        });
+        await updateUserHolding(userId, security.id);
+        continue;
+      }
+  
+      // UPDATE EXISTING TRANSACTION
+      if (tx.updateFlag) {
+        await prisma.stockTransaction.update({
+          where: { id: tx.id },
+          data: {
+            type: tx.type,
+            quantity: tx.quantity,
+            price: tx.price,
+            timestamp: new Date(tx.date),
+          },
+        });
+        await updateUserHolding(userId, security.id);
+        continue;
+      }
+    }
+  }
+  
+  async function updateUserHolding(userId: number, securityId: number) {
+    // Get all BUY transactions to recalculate quantity and avg price
+    const transactions = await prisma.stockTransaction.findMany({
+      where: {
+        userId,
+        securityId,
+      },
+    });
+  
+    let quantity = 0;
+    let totalCost = 0;
+  
+    for (const tx of transactions) {
+      if (tx.type === 'BUY') {
+        quantity += tx.quantity;
+        totalCost += tx.quantity * tx.price;
+      } else if (tx.type === 'SELL') {
+        quantity -= tx.quantity;
+      }
+    }
+  
+    const avgBuyPrice = quantity > 0 ? totalCost / quantity : null;
+  
+    await prisma.userHolding.upsert({
+      where: {
+        userId_securityId: {
+          userId,
+          securityId,
+        },
+      },
+      update: {
+        quantity,
+        avgBuyPrice,
+      },
+      create: {
+        userId,
+        securityId,
+        quantity,
+        avgBuyPrice,
+      },
+    });
+  }
+
+
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /*
+
+
+
+
+  type TransactionInput = {
+    stockCode: string;
+    exchange: string;
+    date: Date;
+    quantity: number;
+    price: number;
+    type: 'BUY' | 'SELL';
+  };
+
+
+  export async function processTransaction(input: TransactionInput) {
+    const userId = await getUserId();
+  
+    // Step 1: Ensure Security exists
+    let security = await prisma.security.findUnique({
+      where: {
+        stockCode_exchange: {
+          stockCode: input.stockCode,
+          exchange: input.exchange,
+        },
+      },
+    });
+  
+    if (!security) {
+      security = await prisma.security.create({
+        data: {
+          stockCode: input.stockCode,
+          exchange: input.exchange,
+        },
+      });
+    }
+  
+    // Step 2: Create the Transaction
+    await prisma.stockTransaction.create({
+      data: {
+        userId,
+        securityId: security.id,
+        type: input.type,
+        quantity: input.quantity,
+        price: input.price,
+        timestamp: input.date,
+      },
+    });
+  
+    // Step 3: Update User Holdings
+    const existingHolding = await prisma.userHolding.findUnique({
+      where: {
+        userId_securityId: {
+          userId,
+          securityId: security.id,
+        },
+      },
+    });
+  
+    if (input.type === 'BUY') {
+      if (!existingHolding) {
+        // Create a new holding
+        await prisma.userHolding.create({
+          data: {
+            userId,
+            securityId: security.id,
+            quantity: input.quantity,
+            avgBuyPrice: input.price,
+          },
+        });
+      } else {
+        // Update average buy price and quantity
+        const newQuantity = existingHolding.quantity + input.quantity;
+        const totalCost =
+          existingHolding.avgBuyPrice! * existingHolding.quantity +
+          input.price * input.quantity;
+        const newAvgPrice = totalCost / newQuantity;
+  
+        await prisma.userHolding.update({
+          where: {
+            userId_securityId: {
+              userId,
+              securityId: security.id,
+            },
+          },
+          data: {
+            quantity: newQuantity,
+            avgBuyPrice: newAvgPrice,
+          },
+        });
+      }
+    } else if (input.type === 'SELL') {
+      if (!existingHolding || existingHolding.quantity < input.quantity) {
+        throw new Error('Insufficient quantity to sell');
+      }
+  
+      const newQuantity = existingHolding.quantity - input.quantity;
+  
+      await prisma.userHolding.update({
+        where: {
+          userId_securityId: {
+            userId,
+            securityId: security.id,
+          },
+        },
+        data: {
+          quantity: newQuantity,
+          // avgBuyPrice remains unchanged
+        },
+      });
+    }
+  }
+
+
+
+*/
 
 
 
