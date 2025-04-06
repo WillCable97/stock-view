@@ -1,8 +1,21 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+//import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { getUserId } from "./user.action";
+
+// Add tags for selective revalidation
+//export const HOLDINGS_TAG = 'holdings';
+//export const TRANSACTIONS_TAG = 'transactions';
+
+// Add this new function to refresh holdings data
+/*
+export async function refreshHoldings() {
+  revalidateTag(HOLDINGS_TAG);
+  revalidateTag(TRANSACTIONS_TAG);
+}
+*/
 
 /*********************GET USER HOLDINGS FLOW********************** */
 export async function getHoldings(): Promise<{ stockCode: string, quantity: number, avgBuyPrice: number }[]> {
@@ -21,7 +34,7 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
           },
           quantity: true, 
           avgBuyPrice: true 
-        },
+        }
       });
   
       // Flatten the nested result to just stockCode
@@ -35,63 +48,89 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
 
 
 
-  type Transaction = {
-    id: number;
-    date: string;
-    shares: number;
-    price: number;
-  };
-  
-  type TransactionsByStock = Record<string, Transaction[]>;
-  
+type Transaction = {
+  id: number;
+  date: string;
+  quantity: number;
+  price: number;
+  type: 'BUY' | 'SELL'; // Include transaction type
+};
 
-  export async function getAllTransactions(): Promise<TransactionsByStock> {
-    const userId = await getUserId();
-  
-    const transactions = await prisma.stockTransaction.findMany({
-      where: { userId },
-      include: {
-        security: true,
-      },
-      orderBy: {
-        timestamp: 'asc',
-      },
-    });
-  
-    const grouped: TransactionsByStock = {};
-  
-    for (const tx of transactions) {
-      const code = tx.security.stockCode;
-  
-      if (!grouped[code]) {
-        grouped[code] = [];
-      }
-  
-      grouped[code].push({
-        id: tx.id,
-        date: tx.timestamp.toISOString().split('T')[0], // format as YYYY-MM-DD
-        shares: tx.quantity,
-        price: tx.price,
-      });
+type TransactionsByStock = Record<string, Transaction[]>;
+
+export async function getAllTransactions(): Promise<TransactionsByStock> {
+  const userId = await getUserId();
+
+  const transactions = await prisma.stockTransaction.findMany({
+    where: { userId },
+    include: {
+      security: true,
+    },
+    orderBy: {
+      timestamp: 'asc',
+    },
+  });
+
+  const grouped: TransactionsByStock = {};
+
+  for (const tx of transactions) {
+    const code = tx.security.stockCode;
+
+    if (!grouped[code]) {
+      grouped[code] = [];
     }
-  
-    return grouped;
+
+    grouped[code].push({
+      id: tx.id,
+      date: tx.timestamp.toISOString().split('T')[0], // format as YYYY-MM-DD
+      quantity: tx.quantity,
+      price: tx.price,
+      type: tx.type,
+    });
   }
 
+  return grouped;
+}
 
 
 
 
 
-
-
+export async function refreshPortfolio() {
+  revalidatePath('/portfolio');
+}
 
 
 /*
+[
+    {
+        "id": 1,
+        "date": "2025-03-28",
+        "quantity": 10,
+        "price": 50,
+        "type": "BUY",
+        "stockCode": "VGS",
+        "newFlag": false,
+        "deleteFlag": false,
+        "updateFlag": false
+    },
+    {
+        "id": 2,
+        "date": "2025-02-25",
+        "quantity": 5,
+        "price": 7,
+        "type": "BUY",
+        "newFlag": true,
+        "stockCode": "VGS",
+        "deleteFlag": false,
+        "updateFlag": false
+    }
+]
+*/
+
 
   interface TransactionInput {
     id: number;
-    stockCode: string;
     date: Date;
     quantity: number;
     price: number;
@@ -101,7 +140,8 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
     updateFlag: boolean;
   }
   
-  async function processTransactions(transactions: TransactionInput[], exchange: string) {
+  export async function processTransactions(transactions: TransactionInput[], exchange: string, stockcode: string) {
+
     const userId = await getUserId();
   
     for (const tx of transactions) {
@@ -109,13 +149,13 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
       const security = await prisma.security.upsert({
         where: {
           stockCode_exchange: {
-            stockCode: tx.stockCode,
+            stockCode: stockcode,
             exchange: exchange,
           },
         },
         update: {},
         create: {
-          stockCode: tx.stockCode,
+          stockCode: stockcode,
           exchange: exchange,
         },
       });
@@ -208,7 +248,7 @@ export async function getHoldings(): Promise<{ stockCode: string, quantity: numb
 
 
 
-*/
+
 
 
 

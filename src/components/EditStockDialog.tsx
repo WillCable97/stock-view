@@ -9,11 +9,19 @@ import {
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Edit, Trash2, Save, X } from "lucide-react";
-//import { getAllTransactionsByCode } from "@/app/actions/userHoldings.action";
+import { refreshPortfolio } from "@/app/actions/userHoldings.action";
+import { Holding } from "@/types/holdings";
 
 type Stock= {
   price: number;
@@ -22,34 +30,30 @@ type Stock= {
   avgBuyPrice: number;
 }
 
-/*
-interface TransactionInput {
+type TransactionIN = {
   id: number;
-  stockCode: string;
-  date: Date;
+  date: string;
+  quantity: number;
+  price: number;
+  type: 'BUY' | 'SELL'; // Include transaction type
+};
+
+
+type Transaction = {
+  id: number;
+  date: string;
   quantity: number;
   price: number;
   type: 'BUY' | 'SELL';
   newFlag: boolean;
   deleteFlag: boolean;
   updateFlag: boolean;
-}
-  */
-
-type Transaction = {
-  id: number;
-  date: string;
-  shares: number;
-  price: number;
-  newFlag: boolean
-  deleteFlag: boolean
-  updateFlag: boolean
 };
 
 type Props = {
-  stock?: Stock | null
-  newStock?: boolean
-  inputTransactions?: Transaction[] | null
+  newStock?: boolean;
+  stock?: Holding | null;
+  inputTransactions?: Transaction[] | null;
   children: React.ReactNode;
 };
 
@@ -57,53 +61,80 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newRow, setNewRow] = useState(false);
-  const [form, setForm] = useState({ date: "", shares: "", price: "" });
+  const [form, setForm] = useState({ date: "", type: "", quantity: "", price: "" });
+
+  const [secCode, setSecCode] = useState (stock?.stockCode || '')
+
+  const [deletedTrans, setDeletedTrans] = useState<Transaction[]>([])
 
   const flaggedTransactions = inputTransactions ? inputTransactions.map(transaction => ({...transaction, newFlag: false, deleteFlag: false, updateFlag: false})) : []
   const [transactions, setTransactions] = useState<Transaction[]>(flaggedTransactions);
 
+  const idBase = inputTransactions ? Math.max(...inputTransactions.map(t => t.id)) + 1 : 1 
+
   const handleNewTransaction = () => {
-    const nextId = transactions.length ? Math.max(...transactions.map(t => t.id)) + 1 : 1
+    const candidateId = transactions.length ? Math.max(...transactions.map(t => t.id)) + 1 : 1
+    const nextId = Math.max(idBase, candidateId) //Never reuse an existing ID, and never use an ID in the range of examples given (prevents reuse of ID after deletionc)
 
     setTransactions([...transactions, {
       id: nextId,
       date: form.date,
-      shares: +form.shares,
+      quantity: +form.quantity,
       price: +form.price,
+      type: form.type==="BUY" ? "BUY":"SELL",
       newFlag: true,
       deleteFlag: false,
       updateFlag: false
     }]);
     setNewRow(false);
-    setForm({ date: "", shares: "", price: "" });
+    setForm({ date: "", type: "", quantity: "", price: "" });
   };
 
-  
   const handleSave = (id: number) => {
     setTransactions(transactions.map(t =>
-      t.id === id ? { ...t, ...form, shares: +form.shares, price: +form.price } : t
+      t.id === id ? { ...t, ...form, quantity: +form.quantity, price: +form.price, type: form.type==="BUY" ? "BUY":"SELL", date:form.date } : t
     ));
     setEditingId(null);
-    setForm({ date: "", shares: "", price: "" });
+    setForm({ date: "", type: "", quantity: "", price: "" });
   };
-
+  
   const handleDelete = (id: number) => {
-    setTransactions(prev =>
-      prev
-        .map(t => {
-          if (t.id === id) {
-            if (t.newFlag) {
-              return { ...t, deleteFlag: true }; // Mark for deletion
-            } else {
-              return null; // Remove
-            }
-          }
-          return t; // Keep others unchanged
-        })
-        .filter(t => t !== null) as Transaction[] // Filter out removed ones
-    );
+
+    setTransactions(transactions.filter(t => {
+      if(t.id===id){
+        if(!t.newFlag){
+          setDeletedTrans([...deletedTrans, {...t, deleteFlag: true}])
+        }
+        return false;
+      }
+      return true;
+    }))
   };
 
+  const handledone = async () => {
+    const totalTransactionChange = deletedTrans ? transactions.concat(deletedTrans) : transactions
+
+    setOpen(false)
+
+    
+    const res = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transactions: totalTransactionChange,
+        exchange: 'ASX',
+        stockCode: secCode
+      }),
+    });
+  
+    const result = await res.json();
+    console.log(result);
+    
+    // Refresh the portfolio data
+    await refreshPortfolio();
+  }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -111,7 +142,7 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
         <DialogHeader>
           <DialogTitle>{newStock ? "Add Holding" : `Edit Transactions - ${stock?.stockCode}`}</DialogTitle>
           {
-            newStock ? <Input placeholder="Stock Symbol" className="max-w-xs bg-zinc-900 text-white border-zinc-700" /> 
+            newStock ? <Input placeholder="Stock Symbol" value={secCode} onChange={e => setSecCode(e.target.value)} className="max-w-xs bg-zinc-900 text-white border-zinc-700" /> 
             : <></>
           }
         </DialogHeader>
@@ -120,6 +151,7 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
           <TableHeader>
             <TableRow>
               <TableHead className="!text-white">Date</TableHead>
+              <TableHead className="!text-white">Buy/Sell</TableHead>
               <TableHead className="!text-white">Shares</TableHead>
               <TableHead className="!text-white">Price</TableHead>
               <TableHead className="!text-white">Actions</TableHead>
@@ -132,14 +164,30 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
                 {/**DATE FIELD */}
                 <TableCell>
                   {editingId === t.id
-                    ? <Input value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                    ? <Input type='date' value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                     : t.date}
+                </TableCell>
+                {/**BUY / SELL FIELD */}
+                <TableCell>
+                  {editingId === t.id
+                    ? <Select value={form.type}
+                    onValueChange={(value) => setForm({ ...form, type: value })}
+                    >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BUY">BUY</SelectItem>
+                      <SelectItem value="SELL">SELL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                    : t.type}
                 </TableCell>
                 {/**QUANTITY FIELD */}
                 <TableCell>
                   {editingId === t.id
-                    ? <Input value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} />
-                    : t.shares}
+                    ? <Input value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+                    : t.quantity}
                 </TableCell>
                 {/**PRICE FIELD */}
                 <TableCell>
@@ -158,7 +206,7 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
                     <>
                       <Button size="icon" variant="ghost" onClick={() => {
                         setEditingId(t.id);
-                        setForm({ date: t.date, shares: t.shares.toString(), price: t.price.toString() });
+                        setForm({ date: t.date, type: t.type, quantity: t.quantity.toString(), price: t.price.toString() });
                       }}><Edit className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => handleDelete(t.id)}><Trash2 className="w-4 h-4" /></Button>
                     </>
@@ -169,14 +217,26 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
             {/**NEW ROW ADDED */}
             {newRow && (
               <TableRow>
-                <TableCell><Input value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></TableCell>
-                <TableCell><Input value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} /></TableCell>
+                <TableCell><Input value={form.date} type="date" onChange={e => setForm({ ...form, date: e.target.value })} /></TableCell>
+                <TableCell>
+                  <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BUY">BUY</SelectItem>
+                        <SelectItem value="SELL">SELL</SelectItem>
+                      </SelectContent>
+                  </Select>
+                </TableCell>
+
+                <TableCell><Input value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></TableCell>
                 <TableCell><Input value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></TableCell>
                 <TableCell className="flex gap-2">
                   <Button size="icon" variant="ghost" onClick={handleNewTransaction}><Save className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => {
                     setNewRow(false);
-                    setForm({ date: "", shares: "", price: "" });
+                    setForm({ date: "", type:"", quantity: "", price: "" });
                   }}><X className="w-4 h-4" /></Button>
                 </TableCell>
               </TableRow>
@@ -188,7 +248,7 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
           {!newRow && (
             <Button variant="secondary" onClick={() => setNewRow(true)}>Add Transaction</Button>
           )}
-          <Button variant="secondary" onClick={() => setOpen(false)}>Done</Button>
+          <Button variant="secondary" onClick={() => handledone()}>Done</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
