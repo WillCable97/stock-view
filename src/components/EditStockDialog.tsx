@@ -21,25 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Edit, Trash2, Save, X } from "lucide-react";
 import { refreshPortfolio } from "@/app/actions/userHoldings.action";
-import { Holding } from "@/types/holdings";
-
-type Stock= {
-  price: number;
-  stockCode: string;
-  quantity: number;
-  avgBuyPrice: number;
-}
-
-type TransactionIN = {
-  id: number;
-  date: string;
-  quantity: number;
-  price: number;
-  type: 'BUY' | 'SELL'; // Include transaction type
-};
+import { Holding, Transaction } from "@/types/holdings";
 
 
-type Transaction = {
+
+type NewTransaction = {
   id: number;
   date: string;
   quantity: number;
@@ -59,17 +45,21 @@ type Props = {
 
 const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = null, children }: Props) => {
   const [open, setOpen] = useState(false);
+  
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newRow, setNewRow] = useState(false);
   const [form, setForm] = useState({ date: "", type: "", quantity: "", price: "" });
 
   const [secCode, setSecCode] = useState (stock?.stockCode || '')
 
-  const [deletedTrans, setDeletedTrans] = useState<Transaction[]>([])
-
+  //Keeping track of transaction changes
+  const [deletedTrans, setDeletedTrans] = useState<NewTransaction[]>([])
+  //Initializing the transactions with flags to track changes
   const flaggedTransactions = inputTransactions ? inputTransactions.map(transaction => ({...transaction, newFlag: false, deleteFlag: false, updateFlag: false})) : []
-  const [transactions, setTransactions] = useState<Transaction[]>(flaggedTransactions);
+  const [transactions, setTransactions] = useState<NewTransaction[]>(flaggedTransactions);
 
+  //Base ID for new transactions
   const idBase = inputTransactions ? Math.max(...inputTransactions.map(t => t.id)) + 1 : 1 
 
   const handleNewTransaction = () => {
@@ -81,7 +71,7 @@ const  EditStockDialog =  ({ newStock = false, stock= null, inputTransactions = 
       date: form.date,
       quantity: +form.quantity,
       price: +form.price,
-      type: form.type==="BUY" ? "BUY":"SELL",
+      type: form.type as 'BUY' | 'SELL',
       newFlag: true,
       deleteFlag: false,
       updateFlag: false
